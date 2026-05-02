@@ -1,35 +1,22 @@
-# Enterprise Agentic Orchestrator: Supply Chain Intelligence
+# Enterprise Supply Chain Agentic Orchestrator
 
-Python
-LangGraph
-CrewAI
-Strict Mypy
-License
+A production-ready, multi-agent AI system designed to autonomously ingest, assess, and mitigate supply chain disruptions. 
 
-An event-driven, zero-trust multi-agent orchestration engine built for enterprise supply chain operations. 
-
-This system ingests high-velocity manufacturing telemetry, utilizes a hybrid **LangGraph/CrewAI** topology to autonomously investigate anomalies, and enforces strict, deterministic human-in-the-loop governance before triggering downstream procurement escalations.
+This system uses a **CrewAI** pod for deep cognitive reasoning (analyzing contracts, SLAs, and risk impacts) and relies on **LangGraph** as a deterministic, stateful orchestrator to handle routing, human-in-the-loop governance, and immutable audit logging.
 
 ---
 
-## 📖 Business Context
+## 🏢 Business Context
 
-In Tier-1 aerospace and manufacturing environments, supply chain telemetry generates thousands of alerts daily. Standard LLM chatbots cannot handle this volume, nor can they be trusted to execute procurement actions autonomously without hallucinating.
+Modern supply chains generate thousands of telemetry events daily, ranging from minor EDI ping timeouts to critical metallurgical stress test failures. Human operators suffer from alert fatigue, often missing critical disruptions buried in the noise.
 
-This repository demonstrates the architectural solution to this problem:
+This system acts as a **Level-1 and Level-2 autonomous triage unit**:
 
-1. **Filtering the Noise:** Deterministic routing drops invalid telemetry before expensive reasoning cycles occur.
-2. **Deep Reasoning on Valid Threats:** Multi-agent pods analyze real threats to estimate financial impact and severity.
-3. **Zero-Trust Execution:** The AI is allowed to *draft* business actions, but the system forcibly pauses execution to require explicit human ratification.
+1. **The Gateway (Noise Reduction):** A LangGraph Supervisor instantly analyzes incoming telemetry. If it identifies standard system noise, it resolves the ticket autonomously, saving human bandwidth.
+2. **The Investigation Pod (Risk Assessment):** For valid anomalies, a multi-agent CrewAI pod is deployed. A *Supplier Data Analyst* decodes the raw logs to find the root cause, while an *Enterprise Risk Mitigation Specialist* calculates the global financial severity and SLA consequences.
+3. **The Governance Boundary (Execution):** The AI drafts a mitigation strategy (e.g., "Halt Production") but is strictly prevented from executing external API calls to the ERP system until a human operator reviews and approves the immutable audit trail.
 
 ---
-
-## 🏗️ The Hybrid Architecture
-
-To handle the complexity of enterprise telemetry without creating massive state-management boilerplate, this architecture enforces a strict separation of concerns.
-
-- **The Control Plane (Macro-Orchestration):** LangGraph acts as the deterministic router. It manages the global state payload, enforces Pydantic schemas, and handles the `interrupt_before` execution breakpoints.
-- **The Reasoning Pods (Micro-Execution):** CrewAI is utilized strictly for localized, multi-agent brainstorming. It executes deep analysis and returns strictly typed objects back to the overarching graph.
 
 ### System Flow Diagram
 
@@ -76,11 +63,28 @@ graph TD
 
 ---
 
-## 🔒 Enterprise Governance Features
+## 🛡️ Enterprise Governance Features
 
-1. **Ratified Human-in-the-Loop:** Consequential actions (e.g., halting production, sourcing alternate suppliers) are paused using LangGraph's state checkpointer. Autonomous agents *draft* actions; they cannot *execute* them without human terminal approval.
-2. **Immutable Audit Logging:** Every agent decision, state transition, and tool call is checkpointed to a local PostgreSQL database, enabling compliance teams to reconstruct any system action.
-3. **Strict Determinism:** Powered by Python 3.14, `uv`, `mypy` (strict mode), and `ruff`. LLM outputs are forced into rigorous `pydantic` v2 schemas at every node transition to prevent data schema hallucination.
+This system was built with strict "zero-trust" AI principles:
+
+- **Human-in-the-Loop (HITL) Boundary:** Utilizing LangGraph's `interrupt_before=["execute"]` mechanics, the AI can reason and draft actions, but the system forcibly pauses and yields terminal control to a human before invoking the `erp_mock.py` integration.
+- **Immutable Audit Logging:** Powered by `PostgresSaver`, every node transition, LLM response, and state mutation is permanently serialized to a physical PostgreSQL database, tagged by a unique `thread_id` tied to the specific supply chain event.
+- **Provider-Agnostic Failover:** Dynamic configuration toggles allow seamless switching between standard OpenAI (`gpt-4o`), Google Gemini (`gemini-2.5-flash-lite`), and Enterprise Azure OpenAI to prevent vendor lock-in and ensure uptime.
+- **Strict Output Enforcement:** Raw LLM strings are strictly forbidden. All state data is cast directly into rigorous Pydantic V2 schemas (`TelemetryEvent`, `RiskAssessment`, `EscalationAction`) ensuring downstream systems never receive hallucinated keys.
+
+---
+
+## 🏗️ Tech Stack
+
+- **Language:** Python 3.12+ (Strictly Typed)
+- **Orchestration & State:** LangGraph
+- **Cognitive Pods:** CrewAI
+- **Persistence:** PostgreSQL via LangGraph PostgresSaver (Dockerized)
+- **Observability:** LangSmith
+- **Validation:** Pydantic V2
+- **Static Typing:** `mypy` (Strict Mode)
+- **Testing:** `pytest` (with class-level monkeypatching)
+- **Package Manager:** `uv`
 
 ---
 
@@ -88,66 +92,101 @@ graph TD
 
 ```text
 supply-chain-agentic-orchestrator/
-├── .github/workflows/ci.yml     # Automated Ruff & Mypy enforcement
+├── data/
+│   └── mock_telemetry_main.json   # Batch event payloads (Quality failures, Delays, EDI Noise)
 ├── src/
 │   ├── agents/
 │   │   ├── crews/
-│   │   │   └── risk_investigator.py # CrewAI multi-agent pod
+│   │   │   └── risk_investigator.py # CrewAI multi-agent pod logic
 │   │   └── nodes/
-│   │       ├── escalation.py        # LangGraph action drafting & execution
-│   │       └── supervisor.py        # LangGraph triage routing
+│   │       ├── escalation.py        # LangGraph action drafting & execution nodes
+│   │       └── supervisor.py        # LangGraph routing gateway
 │   ├── core/
+│   │   └── config.py              # Centralized settings & fail-fast validation
 │   ├── schemas/
-│   │   └── telemetry.py         # Pydantic v2 enterprise data models
+│   │   └── telemetry.py           # Strictly typed Pydantic data models
 │   ├── state/
-│   │   └── graph_state.py       # LangGraph TypedDict (The Audit Payload)
+│   │   └── graph_state.py         # The TypedDict LangGraph State schema
 │   ├── tools/
-│   └── main.py                  # Event ingestion & pipeline compilation
-├── docker-compose.yml           # PostgreSQL state persistence infrastructure
-├── pyproject.toml               # Strict linting & typing rules
-└── .env                         # Observability & LLM credentials
+│   │   └── erp_mock.py            # Simulated SAP/Oracle integration logic
+│   └── main.py                    # Core graph compilation and batch processing loop
+├── tests/
+│   ├── __init__.py
+│   └── test_config.py             # Import-time mocking and provider toggle tests
+├── .env                           # API keys, LangSmith, & DB URIs (Git-ignored)
+├── .gitignore                     # Security boundaries
+├── docker-compose.yml             # PostgreSQL Infrastructure-as-Code
+├── pyproject.toml                 # uv dependencies
+└── README.md
 ```
 
 ---
 
-## 🚀 Quickstart
+## 🚀 Quickstart Guide
 
-This project uses `uv` for blazing-fast, deterministic dependency resolution.
+### 1. Prerequisites
 
-### 1. Environment Setup
+- Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- Install [uv](https://github.com/astral-sh/uv) (The fast Python package manager)
 
-```bash
-# Clone the repository
-git clone [https://github.com/yourusername/supply-chain-agentic-orchestrator.git](https://github.com/yourusername/supply-chain-agentic-orchestrator.git)
-cd supply-chain-agentic-orchestrator
+### 2. Environment Setup
 
-# Configure environment variables
-cp .env.example .env
-# Ensure you add your OPENAI_API_KEY to the .env file
+Create a `.env` file at the root of the project. Leave only **ONE** of the three LLM provider blocks populated to control the toggle:
+
+```env
+# --- OPTION 1: Public OpenAI ---
+# OPENAI_API_KEY=""
+
+# --- OPTION 2: Google Gemini ---
+GEMINI_API_KEY=""
+
+# --- OPTION 3: Enterprise Azure OpenAI ---
+# AZURE_OPENAI_API_KEY=""
+# AZURE_OPENAI_ENDPOINT="[https://your-resource-name.openai.azure.com/](https://your-resource-name.openai.azure.com/)"
+# AZURE_OPENAI_API_VERSION="2024-02-01"
+# AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-4o" # Or whatever you named your deployment in Azure
+
+# LangSmith Observability (The "40% reduction in debugging cycles")
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=""
+LANGCHAIN_PROJECT=supply-chain-agentic-orchestrator
+
+# Database Persistence (Matches docker-compose)
+DATABASE_URI=postgresql://admin:securepassword@localhost:5432/supply_chain_audit
 ```
 
-### 2. Run the Infrastructure (Optional)
+### 3. Spin up the Database
 
-To test the immutable audit log functionality, spin up the local PostgreSQL instance:
+Start the PostgreSQL audit database in the background:
 
 ```bash
 docker compose up -d
 ```
 
-### 3. Execute the Pipeline
+### 4. Run the Pipeline
 
-Run the event ingestion pipeline. Watch as the system triages the event, triggers the CrewAI pod, drafts an action, and physically pauses execution to await your approval.
+Use `uv` to sync dependencies and execute the orchestrator:
 
 ```bash
-uv run python src/main.py
+uv run python -m src.main
+```
+
+The system will ingest the batch mock data, auto-resolve the standard noise, and halt on the critical events to prompt you for `APPROVE` or `SKIP` authorization before executing the ERP mock.
+
+### 5. Run Tests & Type Checks
+
+```bash
+uv run pytest
+uv run mypy .
 ```
 
 ---
 
-## 🛠️ Tech Stack & Toolchain
+## 🛑 Shutting Down
 
-- **Routing & State Management:** LangGraph, `langgraph-checkpoint`
-- **Micro-Execution Reasoning:** CrewAI, LangChain OpenAI (GPT-4o)
-- **Data Validation:** Pydantic v2
-- **Code Quality:** `uv`, `ruff`, `mypy` (strict mode enabled)
+To spin down the local database while preserving your saved LangGraph checkpoints securely on your disk:
+
+```bash
+docker compose down
+```
 
