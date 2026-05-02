@@ -43,7 +43,7 @@ graph TD
     Supervisor -->|Invalid/Noise| EndNoise
     Supervisor -->|Valid Anomaly| CrewAI_Pod
 
-    CrewAI_Pod -->|Pydantic RiskAssessment Schema| Draft
+    CrewAI_Pod -->|Pydantic Risk Assessment Schema| Draft
 
     Draft -.->|interrupt_before| Gate
     Gate -->|Reject| Archive
