@@ -1,0 +1,20 @@
+[
+    {
+      "event_id": "a1b2c3d4-5678-90ef-1234-567890abcdef",
+      "supplier_id": "SUP-5521-AEROSPACE-ALLOYS",
+      "anomaly_type": "Quality Inspection Failure",
+      "raw_data": "CRITICAL: Batch QA-998 failed metallurgical stress test upon receipt. Entire batch quarantined. Immediate replacement required."
+    },
+    {
+      "event_id": "f9e8d7c6-b5a4-3210-fedc-ba0987654321",
+      "supplier_id": "SUP-3390-PACKAGING",
+      "anomaly_type": "Transit Delay",
+      "raw_data": "WARN: Truck transporting corrugated boxes delayed by heavy snow. Warehouse buffer stock is sufficient for 48 hours."
+    },
+    {
+      "event_id": "11223344-5566-7788-99aa-bbccddeeff00",
+      "supplier_id": "SUP-7711-FASTENERS",
+      "anomaly_type": "EDI Ping Timeout",
+      "raw_data": "INFO: Automated ping timeout confirmed as standard noise. No action required."
+    }
+  ]

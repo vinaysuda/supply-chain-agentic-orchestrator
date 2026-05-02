@@ -1,0 +1,105 @@
+import json
+from pathlib import Path
+from typing import Any
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
+from pydantic import TypeAdapter
+
+from src.agents.crews.risk_investigator import run_risk_investigation_crew
+from src.agents.nodes.escalation import draft_escalation, execute_escalation
+from src.agents.nodes.supervisor import supervise_telemetry
+from src.core.config import settings
+from src.schemas.telemetry import TelemetryEvent
+from src.state.graph_state import GraphState
+
+
+def investigate_risk(state: GraphState) -> dict[str, Any]:
+    """Node wrapper to execute the CrewAI pod inside LangGraph."""
+    event = state["event"]
+
+    print(f"\n[SYSTEM] Deploying CrewAI Pod for Supplier {event.supplier_id}...")
+    assessment = run_risk_investigation_crew(event)
+
+    return {"risk_assessment": assessment, "next_node": "draft"}
+
+
+def build_graph() -> Any:
+    """Constructs the macro-orchestration control plane."""
+    workflow = StateGraph(GraphState)
+
+    # Add all deterministic nodes
+    workflow.add_node("supervisor", supervise_telemetry)
+    workflow.add_node("investigate", investigate_risk)
+    workflow.add_node("draft", draft_escalation)
+    workflow.add_node("execute", execute_escalation)
+
+    # Define routing
+    workflow.add_edge(START, "supervisor")
+
+    # Conditional routing based on the supervisor's decision
+    workflow.add_conditional_edges(
+        "supervisor", lambda state: state["next_node"], {"investigate": "investigate", "end": END}
+    )
+
+    workflow.add_edge("investigate", "draft")
+    workflow.add_edge("draft", "execute")
+    workflow.add_edge("execute", END)
+
+    return workflow
+
+
+def main() -> None:
+    # 1. Fail-fast environment validation
+    settings.validate_core_settings()
+
+    # 2. Initialize State Persistence (Simulating CosmosDB Immutable Audit Log)
+    memory = MemorySaver()
+
+    # 3. Compile Graph with Governance Breakpoint
+    # This proves the "ratified human-in-the-loop" requirement from the Airbus project.
+    app = build_graph().compile(
+        checkpointer=memory,
+        interrupt_before=["execute"],  # Pauses BEFORE execution
+    )
+
+    # 4. Load Batch Mock Data
+    mock_file_path = Path("data/mock_telemetry_main.json")
+    if not mock_file_path.exists():
+        raise FileNotFoundError(f"Mock data not found: {mock_file_path}")
+
+    with open(mock_file_path) as f:
+        data = json.load(f)
+
+    # Use TypeAdapter to validate the list of events
+    adapter = TypeAdapter(list[TelemetryEvent])
+    events = adapter.validate_python(data)
+
+    print(f"\n[SYSTEM] Batch processing started: {len(events)} events found.")
+
+    # 5. Iterate through each telemetry event
+    for i, mock_event in enumerate(events, 1):
+        print(f"\n{'=' * 20} PROCESSING EVENT {i}/{len(events)} {'=' * 20}")
+
+        # NOTE: Each event needs a unique thread_id for persistence
+        config = {"configurable": {"thread_id": str(mock_event.event_id)}}
+
+        try:
+            # Stream the specific event through the graph
+            for event_chunk in app.stream({"event": mock_event}, config):
+                # ... (keep your existing chunk processing logic)
+                pass
+
+            # If the graph hits an interrupt (human-in-the-loop)
+            # You will need to handle the APPROVE logic here for each iteration
+            # or use a simplified mock for batch testing.
+
+        except Exception as e:
+            print(f"[ERROR] Failed to process event {mock_event.event_id}: {e}")
+            continue
+
+    print("\n[SYSTEM] All telemetry events processed.")
+
+
+if __name__ == "__main__":
+    main()
