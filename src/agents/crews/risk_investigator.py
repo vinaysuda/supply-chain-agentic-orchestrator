@@ -61,7 +61,9 @@ def run_risk_investigation_crew(event: TelemetryEvent) -> RiskAssessment:
     crew = Crew(
         agents=[data_analyst, risk_scout],
         tasks=[analysis_task, mitigation_task],
-        process=Process.sequential,
+        process=Process.sequential,  # If there is a need for a debate between agents, comment this line and uncomment the next two lines.
+        # process=Process.hierarchical,  # Creates a manager to orchestrate a debate
+        # manager_llm=crew_llm,
         verbose=True,
     )
 
