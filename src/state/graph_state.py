@@ -7,7 +7,7 @@ class GraphState(TypedDict):
     """
     The strict enterprise state machine payload.
     This entire object is what gets persisted to Postgres at every node transition,
-    satisfying the Airbus zero-trust audit requirements.
+    satisfying the company zero-trust audit requirements.
     """
 
     # The initial trigger payload
