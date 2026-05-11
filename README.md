@@ -190,3 +190,8 @@ To spin down the local database while preserving your saved LangGraph checkpoint
 docker compose down
 ```
 
+---
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
